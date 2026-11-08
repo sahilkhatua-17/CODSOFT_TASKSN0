@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rock Paper Scissors • Animated Championship & Webcam Arena</title>
+  <!-- MediaPipe Hands for Real-time Webcam Hand Gesture Recognition -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --card-border: #1e293b;
+      --cyan: #06b6d4;
+      --cyan-glow: #38bdf8;
+      --purple: #a855f7;
+      --purple-glow: #c084fc;
+      --green: #10b981;
+      --red: #ef4444;
+      --amber: #f59e0b;
+      --text-white: #ffffff;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-white);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 15px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Header Bar */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 14px 24px;
+      border-radius: 14px;
+    }
+
+    .title-area h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      background: linear-gradient(90deg, #38bdf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-area p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-pill {
+      background: #1e293b;
+      color: var(--text-white);
+      border: 1px solid #334155;
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-pill:hover {
+      background: #334155;
+      transform: translateY(-1px);
+    }
+
+    .btn-pill.active {
+      border-color: var(--cyan);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+    }
+
+    /* Scoreboard */
+    .scoreboard {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .score-card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 16px 20px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .score-card.player {
+      border: 2px solid var(--cyan);
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
+    }
+
+    .score-card.cpu {
+      border: 2px solid var(--purple);
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
+    }
+
+    .score-card h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .score-card.player h3 { color: var(--cyan-glow); }
+    .score-card.cpu h3 { color: var(--purple-glow); }
+
+    .score-num {
+      font-size: 2.8rem;
+      font-weight: 900;
+      line-height: 1.1;
+    }
+
+    .score-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .vs-emblem {
+      text-align: center;
+      padding: 0 10px;
+    }
+
+    .vs-text {
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: var(--amber);
+      text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    }
+
+    .round-tag {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: #1e293b;
+      padding: 4px 10px;
+      border-radius: 12px;
+      margin-top: 4px;
+      display: inline-block;
+    }
+
+    /* Battle Arena Canvas */
+    .arena-wrapper {
+      position: relative;
+      background: radial-gradient(circle at center, #131b2e 0%, #090d16 100%);
+      border: 2px solid var(--card-border);
+      border-radius: 20px;
+      height: 320px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      overflow: hidden;
+      box-shadow: inset 0 0 50px rgba(0,0,0,0.6);
+    }
+
+    #particles-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .fighter-side {
+      position: relative;
+      z-index: 2;
+      width: 320px;
+      height: 220px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: transform 0.1s ease;
+    }
+
+    .fighter-side.player {
+      transform-origin: left center;
+    }
+
+    .fighter-side.cpu {
+      transform-origin: right center;
+    }
+
+    .hand-img {
+      width: 300px;
+      height: 210px;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+      transition: filter 0.3s ease;
+    }
+
+    /* Arena Center Announcer */
+    .announcer-overlay {
+      position: absolute;
+      top: 18%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 10;
+      pointer-events: none;
+      width: 80%;
+    }
+
+    .announce-title {
+      font-size: 1.9rem;
+      font-weight: 900;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.8);
+      letter-spacing: 1px;
+    }
+
+    .announce-subtitle {
+      display: none;
+    }
+
+    /* Result Box */
+    .result-box {
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    .result-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .result-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* Move Choice Buttons */
+    .moves-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .move-card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 16px 10px;
+      border: 2px solid var(--card-border);
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .move-card:hover {
+      transform: translateY(-4px);
+    }
+
+    .move-card.rock:hover { border-color: var(--cyan); box-shadow: 0 8px 24px rgba(6, 182, 212, 0.3); }
+    .move-card.paper:hover { border-color: var(--purple); box-shadow: 0 8px 24px rgba(168, 85, 247, 0.3); }
+    .move-card.scissors:hover { border-color: #0d9488; box-shadow: 0 8px 24px rgba(13, 148, 136, 0.3); }
+
+    .move-emoji {
+      font-size: 2.6rem;
+      line-height: 1.2;
+    }
+
+    .move-name {
+      font-size: 1.1rem;
+      font-weight: 800;
+      margin-top: 6px;
+    }
+
+    .move-key {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .move-card:disabled, .move-card.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+      transform: none !important;
+    }
+
+    /* Webcam Recognition Panel */
+    .camera-panel {
+      display: none;
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      border-radius: 16px;
+      padding: 14px 20px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .camera-panel.active {
+      display: flex;
+    }
+
+    .cam-feed-wrapper {
+      position: relative;
+      width: 140px;
+      height: 105px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid var(--cyan);
+      background: #000;
+    }
+
+    #webcam-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* mirror */
+    }
+
+    .cam-status {
+      flex: 1;
+    }
+
+    .cam-status h4 {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--cyan-glow);
+    }
+
+    .cam-status p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .gesture-indicator {
+      display: inline-block;
+      background: #1e293b;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 1rem;
+      color: #facc15;
+      margin-top: 6px;
+      border: 1px solid #334155;
+    }
+
+    /* Match History & Footer */
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-top: 1px solid var(--card-border);
+      margin-top: 10px;
+    }
+
+    .history-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .history-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+
+    .history-pill {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    .history-pill.W { background: var(--green); }
+    .history-pill.L { background: var(--red); }
+    .history-pill.T { background: var(--amber); }
+
+    /* Animations */
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+
+    .pulse {
+      animation: pulse 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header Bar -->
+  <header>
+    <div class="title-area">
+      <h1>⚡ ROCK • PAPER • SCISSORS ⚡</h1>
+    </div>
+    <div class="header-controls">
+      <button class="btn-pill" id="speed-btn" onclick="toggleSpeed()">⏱️ CLASSIC (3-2-1)</button>
+      <button class="btn-pill" id="cam-toggle-btn" onclick="toggleCamera()">📷 WEBCAM MODE</button>
+      <button class="btn-pill" id="mode-btn" onclick="cycleMode()">🎮 INFINITE</button>
+    </div>
+  </header>
+
+  <!-- Scoreboard -->
+  <div class="scoreboard">
+    <!-- Player Card -->
+    <div class="score-card player" id="player-card">
+      <h3>👤 YOU (PLAYER)</h3>
+      <div class="score-num" id="player-score">0</div>
+      <div class="score-meta" id="player-streak">🔥 STREAK: 0 | BEST: 0</div>
+    </div>
+
+    <!-- Center VS Badge -->
+    <div class="vs-emblem">
+      <div class="vs-text">⚡ VS ⚡</div>
+      <div class="round-tag" id="round-tag">ROUND 1</div>
+    </div>
+
+    <!-- AI Opponent Card -->
+    <div class="score-card cpu" id="cpu-card">
+      <h3>🤖 AI OPPONENT</h3>
+      <div class="score-num" id="cpu-score">0</div>
+      <div class="score-meta" id="cpu-winrate">WIN RATE: 0%</div>
+    </div>
+  </div>
+
+  <!-- Animated Battle Arena -->
+  <div class="arena-wrapper" id="arena">
+    <canvas id="particles-canvas"></canvas>
+
+    <!-- Player Hand -->
+    <div class="fighter-side player" id="player-hand-box">
+      <img src="assets/rock_player.png" alt="Player Hand" class="hand-img" id="player-hand-img">
+    </div>
+
+    <!-- Center Announcer -->
+    <div class="announcer-overlay">
+      <div class="announce-title" id="announce-title">READY TO BATTLE!</div>
+      <div class="announce-subtitle" id="announce-subtitle">Choose your move or use keys [ R ] [ P ] [ S ]</div>
+    </div>
+
+    <!-- CPU Hand -->
+    <div class="fighter-side cpu" id="cpu-hand-box">
+      <img src="assets/rock_cpu.png" alt="CPU Hand" class="hand-img" id="cpu-hand-img">
+    </div>
+  </div>
+
+  <!-- Commentary Banner -->
+  <div class="result-box">
+    <div class="result-title" id="result-title">SELECT YOUR MOVE TO START!</div>
+    <div class="result-desc" id="result-desc">Rock smashes Scissors • Paper covers Rock • Scissors cuts Paper</div>
+  </div>
+
+  <!-- Webcam AI HUD (Optional) -->
+  <div class="camera-panel" id="camera-panel">
+    <div class="cam-feed-wrapper">
+      <video id="webcam-video" autoplay playsinline muted></video>
+    </div>
+    <div class="cam-status">
+      <h4>📷 REAL-TIME HAND TRACKING ACTIVE</h4>
+      <p>Show your hand to the camera: Fist = Rock ✊, Open Palm = Paper ✋, 2 Fingers = Scissors ✌️</p>
+      <div class="gesture-indicator" id="gesture-indicator">Detected: Scanning...</div>
+    </div>
+    <button class="btn-pill" onclick="lockInWebcamMove()" id="cam-confirm-btn" style="border-color: var(--amber)">🎯 LOCK MOVE</button>
+  </div>
+
+  <!-- Move Cards (Buttons) -->
+  <div class="moves-grid" id="moves-grid">
+    <div class="move-card rock" onclick="playRound('Rock')">
+      <div class="move-emoji">🪨</div>
+      <div class="move-name">ROCK</div>
+      <div class="move-key">[ Press R ]</div>
+    </div>
+    <div class="move-card paper" onclick="playRound('Paper')">
+      <div class="move-emoji">📄</div>
+      <div class="move-name">PAPER</div>
+      <div class="move-key">[ Press P ]</div>
+    </div>
+    <div class="move-card scissors" onclick="playRound('Scissors')">
+      <div class="move-emoji">✂️</div>
+      <div class="move-name">SCISSORS</div>
+      <div class="move-key">[ Press S ]</div>
+    </div>
+  </div>
+
+  <!-- Footer Stats & History -->
+  <footer>
+    <div class="history-row">
+      <span class="history-title">RECENT ROUNDS:</span>
+      <div id="history-pills" style="display:flex; gap:4px;"></div>
+    </div>
+    <button class="btn-pill" onclick="resetGame()" style="background:#0f172a">↻ RESET ALL SCORES</button>
+  </footer>
+</div>
+
+<script>
+  // Game State
+  let userScore = 0;
+  let cpuScore = 0;
+  let ties = 0;
+  let roundNum = 1;
+  let streak = 0;
+  let bestStreak = 0;
+  let history = [];
+  let isAnimating = false;
+  let soundEnabled = false;
+  let fastMode = false;
+  let gameMode = "Infinite"; // "Infinite", "Best of 3", "Best of 5"
+  let targetWins = null;
+
+  // Audio Engine using Web Audio API
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+  }
+
+  function playTone(freq, durationMs, type="sine") {
+    if (!soundEnabled) return;
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationMs / 1000);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + durationMs / 1000);
+    } catch(e) {}
+  }
+
+  function playFanfare() {
+    if (!soundEnabled) return;
+    const notes = [523.25, 659.25, 783.99, 1046.50];
+    notes.forEach((freq, idx) => {
+      setTimeout(() => playTone(freq, 120, "triangle"), idx * 75);
+    });
+  }
+
+  function playBuzzer() {
+    if (!soundEnabled) return;
+    const notes = [320, 240, 180];
+    notes.forEach((freq, idx) => {
+      setTimeout(() => playTone(freq, 140, "sawtooth"), idx * 90);
+    });
+  }
+
+  // Particle System
+  const canvas = document.getElementById("particles-canvas");
+  const ctx = canvas.getContext("2d");
+  let particles = [];
+
+  function resizeCanvas() {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+  }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+  function spawnParticles(x, y, color, count=40) {
+    const colors = [color, "#ffffff", "#facc15", "#38bdf8"];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 8;
+      particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 1.5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        radius: 3 + Math.random() * 4,
+        life: 25 + Math.random() * 20,
+        maxLife: 45
+      });
+    }
+  }
+
+  function updateParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles = particles.filter(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.28; // gravity
+      p.life--;
+      const alpha = Math.max(0, p.life / p.maxLife);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = alpha;
+      ctx.fill();
+      return p.life > 0;
+    });
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(updateParticles);
+  }
+  updateParticles();
+
+  // Controls & Toggles
+  function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const btn = document.getElementById("sound-btn");
+    if (btn) btn.textContent = soundEnabled ? "🔊 SOUND: ON" : "🔇 SOUND: OFF";
+    if (soundEnabled) playTone(540, 60);
+  }
+
+  function toggleSpeed() {
+    fastMode = !fastMode;
+    document.getElementById("speed-btn").textContent = fastMode ? "⚡ FAST (INSTANT)" : "⏱️ CLASSIC (3-2-1)";
+    playTone(540, 60);
+  }
+
+  function cycleMode() {
+    if (gameMode === "Infinite") {
+      gameMode = "Best of 3";
+      targetWins = 2;
+      document.getElementById("mode-btn").textContent = "🏆 BEST OF 3";
+    } else if (gameMode === "Best of 3") {
+      gameMode = "Best of 5";
+      targetWins = 3;
+      document.getElementById("mode-btn").textContent = "🏆 BEST OF 5";
+    } else {
+      gameMode = "Infinite";
+      targetWins = null;
+      document.getElementById("mode-btn").textContent = "🎮 INFINITE";
+    }
+    resetGame();
+  }
+
+  // Animation & Gameplay
+  const playerHandBox = document.getElementById("player-hand-box");
+  const cpuHandBox = document.getElementById("cpu-hand-box");
+  const playerHandImg = document.getElementById("player-hand-img");
+  const cpuHandImg = document.getElementById("cpu-hand-img");
+  const announceTitle = document.getElementById("announce-title");
+  const announceSub = document.getElementById("announce-subtitle");
+
+  function setCardsDisabled(disabled) {
+    document.querySelectorAll(".move-card").forEach(c => {
+      if (disabled) c.classList.add("disabled");
+      else c.classList.remove("disabled");
+    });
+  }
+
+  function playRound(userChoice) {
+    if (isAnimating) return;
+    isAnimating = true;
+    setCardsDisabled(true);
+
+    const choices = ["Rock", "Paper", "Scissors"];
+    const cpuChoice = choices[Math.floor(Math.random() * choices.length)];
+
+    // Reset to fists
+    playerHandImg.src = "assets/rock_player.png";
+    cpuHandImg.src = "assets/rock_cpu.png";
+    playerHandBox.style.transform = "none";
+    cpuHandBox.style.transform = "none";
+
+    // Shake sequence
+    const beats = fastMode ? 1 : 3;
+    const beatTexts = [
+      { text: "🪨 ROCK!", color: "#38bdf8", freq: 420 },
+      { text: "📜 PAPER!", color: "#c084fc", freq: 520 },
+      { text: "✂️ SCISSORS!", color: "#34d399", freq: 640 }
+    ];
+
+    let currentBeat = 0;
+
+    function runBeat() {
+      if (currentBeat < beats) {
+        const beatInfo = beatTexts[currentBeat % beatTexts.length];
+        announceTitle.textContent = beatInfo.text;
+        announceTitle.style.color = beatInfo.color;
+        announceSub.textContent = "Get ready...";
+        playTone(beatInfo.freq, 80);
+
+        // Animate fists pumping up and tilting
+        playerHandBox.style.transition = "transform 0.18s ease-out";
+        cpuHandBox.style.transition = "transform 0.18s ease-out";
+        playerHandBox.style.transform = "translateY(-45px) rotate(-14deg)";
+        cpuHandBox.style.transform = "translateY(-45px) rotate(14deg)";
+
+        setTimeout(() => {
+          playerHandBox.style.transform = "translateY(0) rotate(0deg)";
+          cpuHandBox.style.transform = "translateY(0) rotate(0deg)";
+          currentBeat++;
+          setTimeout(runBeat, 180);
+        }, 180);
+      } else {
+        // SHOOT Reveal!
+        revealShoot(userChoice, cpuChoice);
+      }
+    }
+
+    runBeat();
+  }
+
+  function revealShoot(userChoice, cpuChoice) {
+    announceTitle.textContent = "💥 SHOOT!";
+    announceTitle.style.color = "#facc15";
+    announceSub.textContent = "CLASH IMPACT!";
+    playTone(880, 120, "triangle");
+
+    // Change images to reveal choices
+    playerHandImg.src = `assets/${userChoice.toLowerCase()}_player.png`;
+    cpuHandImg.src = `assets/${cpuChoice.toLowerCase()}_cpu.png`;
+
+    // Forward thrust
+    playerHandBox.style.transition = "transform 0.12s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+    cpuHandBox.style.transition = "transform 0.12s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+    playerHandBox.style.transform = "translateX(50px)";
+    cpuHandBox.style.transform = "translateX(-50px)";
+
+    // Spawn clash particles at center
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    setTimeout(() => {
+      concludeRound(userChoice, cpuChoice, cx, cy);
+    }, 150);
+  }
+
+  function concludeRound(userChoice, cpuChoice, cx, cy) {
+    let resultColor = "#f59e0b";
+    let title = "";
+    let desc = "";
+
+    roundNum++;
+    document.getElementById("round-tag").textContent = `ROUND ${roundNum}`;
+
+    if (userChoice === cpuChoice) {
+      title = "🤝 IT'S A TIE!";
+      desc = `Both chose ${userChoice}! A balanced showdown!`;
+      resultColor = "#f59e0b";
+      ties++;
+      history.push("T");
+      spawnParticles(cx, cy, "#f59e0b", 25);
+      playTone(460, 80);
+      setTimeout(() => playTone(460, 80), 100);
+    } else if (
+      (userChoice === "Rock" && cpuChoice === "Scissors") ||
+      (userChoice === "Paper" && cpuChoice === "Rock") ||
+      (userChoice === "Scissors" && cpuChoice === "Paper")
+    ) {
+      userScore++;
+      streak++;
+      bestStreak = Math.max(bestStreak, streak);
+      title = "🎉 YOU WIN!";
+      resultColor = "#10b981";
+      history.push("W");
+
+      if (userChoice === "Rock") desc = "🪨 Your Rock crushes Computer's Scissors!";
+      else if (userChoice === "Paper") desc = "📄 Your Paper wraps Computer's Rock!";
+      else desc = "✂️ Your Scissors cuts Computer's Paper!";
+
+      spawnParticles(cx, cy, "#10b981", 50);
+      playFanfare();
+
+      // Hop animation for winner
+      playerHandBox.style.transform = "translateX(50px) translateY(-25px)";
+      setTimeout(() => playerHandBox.style.transform = "translateX(50px) translateY(0)", 150);
+    } else {
+      cpuScore++;
+      streak = 0;
+      title = "🤖 COMPUTER WINS!";
+      resultColor = "#ef4444";
+      history.push("L");
+
+      if (cpuChoice === "Rock") desc = "🪨 Computer's Rock smashes your Scissors!";
+      else if (cpuChoice === "Paper") desc = "📄 Computer's Paper envelops your Rock!";
+      else desc = "✂️ Computer's Scissors slices through your Paper!";
+
+      spawnParticles(cx, cy, "#ef4444", 40);
+      playBuzzer();
+
+      cpuHandBox.style.transform = "translateX(-50px) translateY(-25px)";
+      setTimeout(() => cpuHandBox.style.transform = "translateX(-50px) translateY(0)", 150);
+    }
+
+    // Update Labels
+    document.getElementById("player-score").textContent = userScore;
+    document.getElementById("cpu-score").textContent = cpuScore;
+    document.getElementById("player-streak").textContent = `🔥 STREAK: ${streak} | BEST: ${bestStreak}`;
+
+    const totalDecided = userScore + cpuScore;
+    const rate = totalDecided > 0 ? Math.round((userScore / totalDecided) * 100) : 0;
+    document.getElementById("cpu-winrate").textContent = `WIN RATE: ${rate}% (${userScore}/${totalDecided})`;
+
+    announceTitle.textContent = title;
+    announceTitle.style.color = resultColor;
+    announceSub.textContent = desc;
+
+    document.getElementById("result-title").textContent = title;
+    document.getElementById("result-title").style.color = resultColor;
+    document.getElementById("result-desc").textContent = desc;
+
+    updateHistoryPills();
+
+    // Check Tournament Mode
+    if (targetWins) {
+      if (userScore >= targetWins) {
+        setTimeout(() => {
+          alert(`🏆 TOURNAMENT VICTORY!\n\nYou won the match ${userScore} - ${cpuScore}!`);
+          resetGame();
+        }, 500);
+        return;
+      } else if (cpuScore >= targetWins) {
+        setTimeout(() => {
+          alert(`🤖 MATCH DEFEAT!\n\nComputer won the match ${cpuScore} - ${userScore}!`);
+          resetGame();
+        }, 500);
+        return;
+      }
+    }
+
+    isAnimating = false;
+    setCardsDisabled(false);
+  }
+
+  function updateHistoryPills() {
+    const container = document.getElementById("history-pills");
+    container.innerHTML = "";
+    const recent = history.slice(-8);
+    recent.forEach(res => {
+      const pill = document.createElement("div");
+      pill.className = `history-pill ${res}`;
+      pill.textContent = res;
+      container.appendChild(pill);
+    });
+  }
+
+  function resetGame() {
+    userScore = 0;
+    cpuScore = 0;
+    ties = 0;
+    streak = 0;
+    roundNum = 1;
+    history = [];
+
+    document.getElementById("player-score").textContent = "0";
+    document.getElementById("cpu-score").textContent = "0";
+    document.getElementById("player-streak").textContent = `🔥 STREAK: 0 | BEST: ${bestStreak}`;
+    document.getElementById("cpu-winrate").textContent = "WIN RATE: 0%";
+    document.getElementById("round-tag").textContent = "ROUND 1";
+
+    announceTitle.textContent = "READY TO BATTLE!";
+    announceTitle.style.color = "#ffffff";
+    announceSub.textContent = "Choose your move or use keys [ R ] [ P ] [ S ]";
+
+    document.getElementById("result-title").textContent = "SCORES RESET • READY TO PLAY!";
+    document.getElementById("result-title").style.color = "var(--cyan-glow)";
+    document.getElementById("result-desc").textContent = "Choose Rock, Paper or Scissors to begin.";
+
+    playerHandImg.src = "assets/rock_player.png";
+    cpuHandImg.src = "assets/rock_cpu.png";
+    playerHandBox.style.transform = "none";
+    cpuHandBox.style.transform = "none";
+
+    isAnimating = false;
+    setCardsDisabled(false);
+    updateHistoryPills();
+  }
+
+  // Keyboard Shortcuts
+  window.addEventListener("keydown", (e) => {
+    if (isAnimating) return;
+    const key = e.key.toUpperCase();
+    if (key === "R") playRound("Rock");
+    else if (key === "P") playRound("Paper");
+    else if (key === "S") playRound("Scissors");
+    else if (key === "M") toggleSound();
+    else if (key === "F") toggleSpeed();
+  });
+
+  // ------------------ WEBCAM HAND DETECTION (MediaPipe) ------------------
+  let cameraActive = false;
+  let videoElement = document.getElementById("webcam-video");
+  let camera = null;
+  let hands = null;
+  let detectedGesture = null;
+
+  async function toggleCamera() {
+    cameraActive = !cameraActive;
+    const panel = document.getElementById("camera-panel");
+    const btn = document.getElementById("cam-toggle-btn");
+
+    if (cameraActive) {
+      panel.classList.add("active");
+      btn.classList.add("active");
+      btn.textContent = "📷 WEBCAM: ACTIVE";
+      initMediaPipe();
+    } else {
+      panel.classList.remove("active");
+      btn.classList.remove("active");
+      btn.textContent = "📷 WEBCAM MODE";
+      if (camera) {
+        camera.stop();
+        camera = null;
+      }
+    }
+  }
+
+  function initMediaPipe() {
+    if (hands) return;
+    document.getElementById("gesture-indicator").textContent = "Initializing AI...";
+
+    hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.65,
+      minTrackingConfidence: 0.65
+    });
+
+    hands.onResults(onHandResults);
+
+    camera = new Camera(videoElement, {
+      onFrame: async () => {
+        if (cameraActive) await hands.send({ image: videoElement });
+      },
+      width: 320,
+      height: 240
+    });
+
+    camera.start().catch(err => {
+      document.getElementById("gesture-indicator").textContent = "Camera access denied";
+    });
+  }
+
+  function onHandResults(results) {
+    if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+      detectedGesture = null;
+      document.getElementById("gesture-indicator").textContent = "Show your hand to camera";
+      return;
+    }
+
+    const lm = results.multiHandLandmarks[0];
+    // Simple robust finger count rule
+    // Index finger tip lm[8].y < pip lm[6].y
+    const indexOpen = lm[8].y < lm[6].y;
+    const middleOpen = lm[12].y < lm[10].y;
+    const ringOpen = lm[16].y < lm[14].y;
+    const pinkyOpen = lm[20].y < lm[18].y;
+    const thumbOpen = Math.abs(lm[4].x - lm[2].x) > 0.04;
+
+    let gesture = null;
+
+    if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
+      gesture = "Scissors";
+    } else if (indexOpen && middleOpen && ringOpen && pinkyOpen) {
+      gesture = "Paper";
+    } else if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
+      gesture = "Rock";
+    }
+
+    if (gesture) {
+      detectedGesture = gesture;
+      const emoji = gesture === "Rock" ? "✊" : gesture === "Paper" ? "✋" : "✌️";
+      document.getElementById("gesture-indicator").textContent = `Detected: ${gesture} ${emoji}`;
+    }
+  }
+
+  function lockInWebcamMove() {
+    if (detectedGesture && !isAnimating) {
+      playRound(detectedGesture);
+    } else {
+      alert("Please show a clear gesture (Rock ✊, Paper ✋, or Scissors ✌️) to the camera first!");
+    }
+  }
+</script>
+
+</body>
+</html>

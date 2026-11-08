@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Generator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Password Generator</h1>
+      <p class="subtitle">Generate strong and secure passwords easily.</p>
+
+      <div class="output-group">
+        <input type="text" id="passwordOutput" value="{{ initial_password }}" readonly>
+        <button type="button" id="copyBtn">Copy</button>
+      </div>
+
+      <div class="form-group">
+        <div class="label-row">
+          <label for="lengthSlider">Length:</label>
+          <span id="lengthDisplay">16</span>
+        </div>
+        <input type="range" id="lengthSlider" min="6" max="64" value="16">
+      </div>
+
+      <div class="options">
+        <label>
+          <input type="checkbox" id="uppercase" checked>
+          Uppercase (A-Z)
+        </label>
+        <label>
+          <input type="checkbox" id="lowercase" checked>
+          Lowercase (a-z)
+        </label>
+        <label>
+          <input type="checkbox" id="numbers" checked>
+          Numbers (0-9)
+        </label>
+        <label>
+          <input type="checkbox" id="symbols" checked>
+          Symbols (!@#$)
+        </label>
+      </div>
+
+      <button type="button" id="generateBtn" class="primary-btn">Generate Password</button>
+
+      <div id="alertMsg" class="alert"></div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>
